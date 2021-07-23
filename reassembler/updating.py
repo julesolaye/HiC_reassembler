@@ -1,14 +1,27 @@
+# Utilities to apply SV to a genome and update the values linked to this.
+
 from typing import Iterable
 import numpy as np
 import warnings
 from Bio import Seq
 
 warnings.filterwarnings("ignore")
-# Utilities to apply SV to a genome
 
 
-def deletion(start: int, end: int, genome: str) -> str:
+
+def deletion(start: int, end: int, genome: Seq.MutableSeq) -> Seq.MutableSeq:
     """Apply deletion on input genome.
+
+    Parameters
+    ----------
+    start: int
+        Coordinate of the beginning of the deletion.
+
+    end: int
+        Coordinate of the end of the deletion.
+
+    genome: Seq.MutableSeq
+        Sequence of the genome.
 
     Examples
     --------
@@ -19,8 +32,13 @@ def deletion(start: int, end: int, genome: str) -> str:
     return mutseq
 
 
-def inversion(genome: str) -> str:
+def inversion(genome: Seq.MutableSeq) -> Seq.MutableSeq:
     """Apply inversion on input genome.
+
+    Parameters
+    ----------
+    genome: Seq.MutableSeq
+        Sequence of the genome.
 
     Examples
     --------
@@ -31,8 +49,22 @@ def inversion(genome: str) -> str:
     return mutseq
 
 
-def translocation(start_cut: int, end_cut: int, start_paste: int, genome: str) -> str:
+def translocation(start_cut: int, end_cut: int, start_paste: int, genome: Seq.MutableSeq) -> Seq.MutableSeq:
     """Apply translocation on input genome.
+
+    Parameters
+    ----------
+    start_cut: int
+        Coordinate of the beginning of the deletion linked to the translocation.
+
+    end_cut: int
+        Coordinate of the end of the deletion linked to the translocation.
+
+    start_paste: int
+        Coordinate of insertion linked to the translocation.
+
+    genome: Seq.MutableSeq
+        Sequence of the genome.
 
     Examples
     --------
@@ -56,6 +88,17 @@ def translocation(start_cut: int, end_cut: int, start_paste: int, genome: str) -
 
 def update_coords_inv(start: int, end: int, coords: Iterable[int]) -> "np.ndarray[int]":
     """Update coordinates after applying an inversion at specified positions
+
+    Parameters
+    ----------
+    start: int
+        Coordinate of the beginning of the inversion.
+
+    end: int
+        Coordinate of the end of the inevrsion.
+
+    coords: Iterable[int]
+        Coordinates we want to update.
     
     Examples
     --------
@@ -80,8 +123,26 @@ def update_coords_tra(
     start_cut: int, end_cut: int, start_paste: int, coords: Iterable[int]
 ) -> "np.ndarray[int]":
     """
-    Update coordinates after applying a deletion at specified positions
+    Update coordinates after applying a translocation at specified positions.
 
+    Parameters
+    ----------
+    start_cut: int
+        Coordinate of the beginning of the deletion linked to the translocation.
+
+    end_cut: int
+        Coordinate of the end of the deletion linked to the translocation.
+
+    start_paste: int
+        Coordinate of the insertion linked to the translocation.
+
+    coords: Iterable[int]
+        Coordinates we want to update.
+
+    Examples
+    --------
+    >>> update_coords_tra(12, 20, 3, [6, 18, 22])
+    array([14,  9, 22])
     """
 
     coords = np.array(coords)
@@ -103,7 +164,23 @@ def update_coords_tra(
 
 def update_coords_ins(pos: int, size: int, coords: Iterable[int]) -> "np.ndarray[int]":
     """
-    Update coordinates after applying a deletion at specified positions
+    Update coordinates after applying a deletion at specified positions.
+
+    Parameters
+    ----------
+    pos: int
+        Coordinate of the insertion.
+
+    size: int
+        Coordinate of the end of the deletion.
+
+    coords: Iterable[int]
+        Size of the insertion.
+
+    Examples
+    --------
+    >>> update_coords_ins(12, 8, [6, 18, 22])
+    array([ 6, 26, 30])
     """
 
     coords = np.array(coords)
@@ -116,12 +193,23 @@ def update_coords_ins(pos: int, size: int, coords: Iterable[int]) -> "np.ndarray
 
 def update_coords_del(start: int, end: int, coords: Iterable[int]) -> "np.ndarray[int]":
     """
-    Update coordinates after applying a deletion at specified positions
+    Update coordinates after applying a deletion at specified positions.
+
+    Parameters
+    ----------
+    start: int
+        Coordinate of the beginning of the deletion.
+
+    end: int
+        Coordinate of the end of the deletion.
+
+    coords: Iterable[int]
+        Coordinates we want to update.
 
     Examples
     --------
-    >>> update_coords_del(12, 18, [4, 15, 22])
-    array([ 4, 12, 16])
+    >>> update_coords_del(10, 15, [6, 18, 22])
+    array([ 6, 13, 17])
     """
     # Shift coordinates on the right of DEL region
     del_size = end - start
@@ -141,6 +229,31 @@ def update_sgn_inversion(
     coords: Iterable[int],
     sgns: Iterable[str],
 ) -> "np.ndarray[str]":
+    """
+    Update the signs of each SV breakpoint when an inversion has been applied.
+
+    Parameters
+    ----------
+    start: int
+        Coordinate of the beginning of the inversion.
+
+    end: int
+        Coordinate of the end of the inversion.
+
+    sgn_start: str
+        Signs at the beginning of the inversion.
+
+    coords: Iterable[int]
+        Coordinates of the signs we want to update.
+
+    sgn_start: Iterable[str]
+        Signs we want to update
+
+    Examples
+    --------
+    >>> update_sgn_inversion(10, 15, "--", "++", np.array([10, 11, 14, 15]), np.array(["--", "-+", "+-", "++"]))
+    array(['-+', '+-', '-+', '-+'])
+    """
 
     coords_inside_fragment = (coords > start) & (coords < end)
     sgn_inside_fragment = sgns[np.argsort(coords[coords_inside_fragment])]
@@ -157,22 +270,4 @@ def update_sgn_inversion(
     return sgns
 
 
-def update_sgn_trans():
 
-    return 1
-
-
-def swap(starts: Iterable[int], ends: Iterable[int]) -> "np.ndarray[int]":
-    """Swap start and end if end is lower than start
-    
-    Examples
-    --------
-    >>> update_coords_inv([4, 18, 22], [7, 13, 19])
-    array([ 4, 13, 19])
-    """
-    swap_mask = starts > ends
-    starts_old = np.copy(starts[swap_mask])
-    ends_old = np.copy(ends[swap_mask])
-    starts[swap_mask] = ends_old
-    ends[swap_mask] = starts_old
-    return starts, ends

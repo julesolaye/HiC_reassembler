@@ -1,4 +1,4 @@
-# Script used to predict SV on a random scrambled matrix.
+# Script used to detect SV breakpoints.
 import numpy as np
 from Bio import SeqIO
 
@@ -27,15 +27,17 @@ def detect(matrix: str, seq: str, bam: str, chrom_name: str, tmpdir: str, binsiz
     # Create temporary drectory
     mkdir(tmpdir)
 
-    # Detection
+    # Detection on Hi-C
     MatDetect = Matrixdetector()
     MatDetect.load()
     MatDetect.predict(matrix)
 
+    # Detection on BAM
     BamDetect = BAMdetector()
     BamDetect.load()
     BamDetect.predict(bam, seq, binsize)
 
+    # Combine SV breakpoints in order to have SVs
     SVCombiner = Combiner(binsize, matrix, bam)
     info_sv = SVCombiner.combine()
     SVCombiner.save_sv_combined()

@@ -1,3 +1,5 @@
+# Some functions which are useful for the detection of the repeats.
+
 from collections import OrderedDict
 from Bio import SeqIO
 
@@ -32,6 +34,14 @@ def load_seq(seqfile: str, chrom_id: str, ind_beg: int, ind_end: int):
 
 
 def lempel_complexity(seq: str):
+    """
+    Compute the lempel complexity of a sequence.
+
+    Parameters:
+    ----------
+    seq : str 
+        The sequence which we want to compute its complexity.
+    """
 
     words = OrderedDict()
     size_seq = len(seq)

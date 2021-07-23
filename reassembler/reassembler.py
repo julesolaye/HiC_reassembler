@@ -1,3 +1,5 @@
+# Class used for the reassembly of the Hi-C map.
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -25,13 +27,13 @@ class Reassembler(object):
 
     Examples
     --------
-    reassembler = Reassembler(SV_dico, file_scrambled, file_seq, chrom_name)
-    rec_reassembled = reassembler.reassembly()
+    reassembler = Reassembler(info_sv, matrix, seq, chrom_name, binsize)
+    mat_reassembled, seq_reassembled = reassembler.reassembly()
     
     Attributes
     ----------
     info_sv : SVs
-        Information of every SV.
+        Informations about all the SVs.
         
     file_scrambled: str
         Filename of the npy file where the scrambled matrix is.
@@ -43,7 +45,7 @@ class Reassembler(object):
         Name of the chromosome associated to the scrambled matrix.
 
     binsize: int
-        Binsize used in HiC-matrix.
+        Binsize used to generate the HiC-matrix.
     """
 
     def __init__(
@@ -74,12 +76,6 @@ class Reassembler(object):
 
         chrom_id : str
             Id of the chromosome we want.
-
-        ind_beg : int
-            Index of the begin of the part of the sequence we want. 
-            
-        ind_end : int
-            Index of the end of the part of the sequence we want. 
         """
 
         records = SeqIO.parse(filename, format="fasta")
@@ -93,8 +89,7 @@ class Reassembler(object):
 
     def check_overlap(self, coords_1: List[int], coords_2: List[int]) -> int:
         """
-        Check if the two SVs are overlapped or not. Return the overlap ratio and
-        the size of the overlap.
+        Check if the two SVs are overlapped or not. It eturns the overlap ratio.
 
         Parameters:
         ----------
@@ -102,11 +97,7 @@ class Reassembler(object):
             List of the coordinates of the first SV.
 
         coords_2: List[int] 
-            List of the coordinates of the first SV.
-
-        chrom_id : str
-            List of the coordinates of the second SV.
-
+            List of the coordinates of the second SV.            
         """
 
         if (coords_2[0] < coords_1[1]) & (coords_1[0] < coords_2[1]):
@@ -123,7 +114,8 @@ class Reassembler(object):
 
         """
         Check if two SVs must me connected in the graph of the complex SVs or not.
-        It returns +inf if they are not connected.
+        It returns +inf if they are not connected, the inverse of the overlap ratio 
+        if two SVs are connected.
 
         Parameters:
         ----------
@@ -134,8 +126,9 @@ class Reassembler(object):
             Tuple with the index of the second sv.
         """
 
-        other_1 = False  # Two tests if translocation because there are two fragments.
-        # I specify if it is for coords 1 or coords2.
+        other_1 = False  # other_1 and other_2 are important for the translocation because there are two fragments, 
+                        # so we must check the overlap for the two fragments.
+        
 
         other_2 = False
         ### Compute coords for SV1
@@ -245,8 +238,9 @@ class Reassembler(object):
 
     def build_graph(self) -> nx.DiGraph:
         """
-        Build a graph with every complex SV. Two SVs are connected in the graph when
-        they are candidates to be complex SVs.
+        Build a graph with every complex SV. The graph has different strongly connected component.
+        Each strongly connected component represents SVs which are overlapped. We will 
+        test every combinaision of nodes for each strongly connected component.
         """
 
         complexSV_graph = nx.DiGraph()
@@ -341,7 +335,6 @@ class Reassembler(object):
         return pool_for_each_subgraph
 
     def find_best_path(self) -> Tuple[List[str], List[float]]:
-
         """
         Test every path and returns the best path. For each path, the programs reassemble
         and make a linear regression between the local average contact and the global
@@ -368,7 +361,7 @@ class Reassembler(object):
 
         print("REASSEMBLY OF COMPLEX SVs:")
         n_combinaisons_tested = sum([len(paths) for paths in paths_for_each_subgraph])
-        with alive_bar(n_combinaisons_tested) as bar:
+        with alive_bar(n_combinaisons_tested) as bar: # Progression bar
             for k in range(0, len(paths_for_each_subgraph)):
 
                 paths = paths_for_each_subgraph[k]
@@ -1165,6 +1158,14 @@ class Reassembler(object):
     def correct_inversion_scrambled(self, start: int, end: int):
         """
         Correction of inversions in the HiC-matrix.
+        
+        Parameters
+        ----------
+        start: int
+            Coordinate of the beginning of the inversion.
+
+        end: int
+            Coordinate of the end of the inevrsion.
         """
 
         self.scrambled[start : end + 1, :] = self.scrambled[start : end + 1, :][::-1, :]
@@ -1185,6 +1186,17 @@ class Reassembler(object):
     ):
         """
         Correction of forward translocation in the HiC-matrix.
+
+        Parameters
+        ----------
+        start: int
+            Coordinate of the beginning of the deletion linked to the translocation.
+
+        end: int
+            Coordinate of the end of the deletion linked to the translocation.
+
+        start_paste: int
+            Coordinate of the end of the deletion linked to the translocation.
         """
 
         size_insertion = end - start + 1
@@ -1322,6 +1334,17 @@ class Reassembler(object):
     ):
         """
         Correction of back translocation in the HiC-matrix.
+
+        Parameters
+        ----------
+        start: int
+            Coordinate of the beginning of the deletion linked to the translocation.
+
+        end: int
+            Coordinate of the end of the deletion linked to the translocation.
+
+        start_paste: int
+            Coordinate of the end of the deletion linked to the translocation.
         """
 
         size_insertion = end - start + 1
@@ -1446,6 +1469,14 @@ class Reassembler(object):
     def correct_insertion_scrambled(self, pos: int, size: int):
         """
         Correction of insertion in the Hi-C matrix.
+
+        Parameters
+        ----------
+        pos: int
+            Coordinate of the insertion.
+
+        size: int
+            Coordinate of the end of the deletion.
         """
 
         # Insertion white spaces
@@ -1469,6 +1500,14 @@ class Reassembler(object):
     def correct_deletion_scrambled(self, start: int, end: int):
         """
         Correction of deletion in the Hi-C matrix.
+
+        Parameters
+        ----------
+        start: int
+            Coordinate of the beginning of the deletion.
+
+        end: int
+            Coordinate of the end of the deletion.
         """
 
         self.scrambled = np.concatenate(
@@ -1482,7 +1521,19 @@ class Reassembler(object):
         self, mutseq: Seq.MutableSeq, start: int, end: int
     ) -> Seq.MutableSeq:
         """
-        Correction of inversions in the sequence.        
+        Correction of an inversion in the sequence.
+
+        Parameters
+        ----------
+        mutseq: Seq.MutableSeq
+            The sequence we want to update.
+
+        start: int
+            Coordinate of the beginning of the inversion.
+
+        end: int
+            Coordinate of the end of the inversion.
+      
         """
 
         mutseq[start:end] = upd.inversion(mutseq[start:end])
@@ -1492,34 +1543,70 @@ class Reassembler(object):
         self, mutseq: Seq.MutableSeq, pos: int, size: int
     ) -> Seq.MutableSeq:
         """
-        Correction of insertions in the sequence.        
+        Correction of an insertion in the sequence.  
+
+        Parameters
+        ----------
+        mutseq: Seq.MutableSeq
+            The sequence we want to update.    
+
+        pos: int
+            Coordinate of the insertion.
+
+        size: int
+            Coordinate of the end of the deletion.  
         """
 
         mutseq = mutseq[:pos] + "N" * size + mutseq[pos:]
         return mutseq
 
     def correct_deletion(
-        self, mutseq: Seq.MutableSeq, deb: int, end: int
+        self, mutseq: Seq.MutableSeq, start: int, end: int
     ) -> Seq.MutableSeq:
         """
-        Correction of deletions in the sequence.        
+        Correction of a deletion in the sequence.
+
+        Parameters
+        ----------
+        mutseq: Seq.MutableSeq
+            The sequence we want to update.    
+
+        start: int
+            Coordinate of the beginning of the deletion.
+
+        end: int
+            Coordinate of the end of the deletion.       
         """
         mutseq = mutseq[:deb] + mutseq[end:]
 
         return mutseq
 
     def correct_translocation(
-        self, mutseq: Seq.MutableSeq, start_ins, end_ins, start_cut
+        self, mutseq: Seq.MutableSeq, start_del : int, end_del : int, start_ins : int
     ) -> Seq.MutableSeq:
         """
-        Correction of forward translocation in the sequence.        
+        Correction of a translocation in the sequence.
+
+        Parameters
+        ----------
+        mutseq: Seq.MutableSeq
+            The sequence we want to update.    
+
+        start_del: int
+            Coordinate of the beginning of the deletion linked to the translocation.
+
+        end_del: int
+            Coordinate of the end of the deletion linked to the translocation.
+
+        start_paste: int
+            Coordinate of the insertion linked to the translocation.
         """
 
         mutseq = upd.translocation(start_ins, end_ins, start_cut, mutseq)
 
         return mutseq
 
-    def reassembly(self, plot=False):
+    def reassembly(self):
         """
         Create the pipeline and reassembly the sequence.
         """
@@ -1732,8 +1819,11 @@ class Reassembler(object):
         self.plot_difference()
         return self.scrambled, self.seq_scrambled
 
-    def plot_difference(self,):
-
+    def plot_difference(self):
+        """
+        Save a figure where there is on this figure the scrambled matrix before 
+        reassembly and after reassembly.
+        """
         fig, ax = plt.subplots(2)
 
         # Before reassembly

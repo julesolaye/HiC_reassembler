@@ -1,3 +1,6 @@
+# After the detection of SVs on the Hi-C matrix, we will use this class to have
+#  the exact position of SVs.
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -17,9 +20,16 @@ from os.path import join
 
 class BAMdetector(object):
     """
-    After the detection of SV index on the Hi-C matrix, this class handles 
-    to detect the BP coordinate of each SV with the help of BAM files. The
-    detection works with a RandomForestClassifier.
+    After the detection of SV breakpoints on the Hi-C matrix, this class handles 
+    to detect the exact coordinate of each SV with the help of BAM files. The
+    detection works with the vote of three model: 
+    - a RandomForestClassifier,
+    - a MLPClassifier,
+    - a GradientBoostingClassifier.
+
+    Every model is trained to detect split-reads. When there is this type of reads, 
+    it considers that it is a SV. So the models will detect if there is a big 
+    number of reads which start/end to align at each position.
     
     Examples
     --------
@@ -28,6 +38,10 @@ class BAMdetector(object):
     
     Attributes
     ----------
+    size_win : int
+        Size of the window used to detect if the number of reads which align at
+        one position is grater than usual.
+
     tmpdir : str
         Path where the temporary directory is. There is inside this directory the
         coordinates of the matrix which are structural variations.
@@ -43,11 +57,11 @@ class BAMdetector(object):
         self.load_data()
 
         self.create_model()
-        self.size_train_forest = 202
+        self.size_win = size_win # Size of the window.
 
     def load_data(self, training_path="data/training/bamdetection"):
         """
-        Loads training set to train the RandomForestClassifier.
+        Load training set to train the models.
 
         Parameters
         ----------
@@ -94,70 +108,65 @@ class BAMdetector(object):
         self.second_classifier.fit(self.x_train, self.y_train)
         self.third_classifier.fit(self.x_train, self.y_train)
 
-    def create_coverage_starts(
+    def find_features(
         self,
         coord: int,
         bam_file: str,
-        size: int = 6000,
-        pos: float = 0.5,
-        chrom: str = "Sc_chr04",
-    ):
+        binsize: int,
+        chrom: str,
+    ) -> tuple("np.ndarray(N)", "np.ndarray(N)", "np.ndarray(N)"):
         """
-        Compute numbers of reads which start and coverage for each position on a windows near the index detected.
+        Compute numbers of reads which start/end to align at each position near the coord. This 
+        will be used to detect if a position is a SV or not because these are 
+        the features of our models.
 
         Parameters
         ----------
         coord : int
-            Index detected by SVDetector.
+            Index detected by Matrixdetector as a potential structural variation.
 
         bam_file : str
             Filename of the  bam file we will use for our prediction.
 
-        size: int
-            Size of the windows where the BP will be searched.
-
-        pos: float
-            Where the index will be in the window. If 0.5, the index*binsize will be in the center.
+        binsize: int
+            Binsize used for the creation of the Hi-C matrix.
 
         chrom: str
-            Name of the chromosome.
-        """
-        self.size_train = 21
-        size_win_bp = 2
+            Name of the chromosome where we will detect.
 
-        binsize = 2000
+        Returns
+        ---------- 
+        """
+        self.corrector = 5 # Without it, the detector can't detect for position at the 
+                        # extremities (because of smooth). "self" because it will 
+                        # be reused in self.prediction_for_each_coord().
+        
 
         c_beg = int(
             coord * binsize
             - pos * size
-            - self.size_train // 2
-            - self.size_train_forest // 4
+            - self.corrector // 2
+            - self.self.size_win  // 4
         )
         c_end = int(
             coord * binsize
             + (1 - pos) * size
-            + self.size_train // 2
-            + self.size_train_forest // 4
+            + self.corrector // 2
+            + self.self.size_win  // 4
         )
 
         region = (
             chrom
             + ":"
-            + str(c_beg - size_win_bp // 2)
+            + str(c_beg)
             + "-"
-            + str(c_end + size_win_bp // 2 + 1)
+            + str(c_end + 1)
         )
         start_reads, end_reads = bm.bam_region_read_ends(
             file=bam_file, region=region, side="both"
         )
-        coverage = bm.bam_region_coverage(file=bam_file, region=region)
 
         # Mean in a windows of 3 positions to smooth.
-        mean_coverage = (
-            coverage
-            + np.concatenate((coverage[1:], np.zeros(1)))
-            + np.concatenate((np.zeros(1), coverage[: len(coverage) - 1]))
-        )[1:-1] // 3
         mean_start_reads = (
             start_reads
             + np.concatenate((start_reads[1:], np.zeros(1)))
@@ -168,20 +177,22 @@ class BAMdetector(object):
             + np.concatenate((end_reads[1:], np.zeros(1)))
             + np.concatenate((np.zeros(1), end_reads[: len(end_reads) - 1]))
         )[1:-1] // 3
-        coords_windows = np.arange(c_beg, c_end)
+        coords_windows = np.arange(c_beg, c_end) 
 
-        return mean_coverage, mean_start_reads, mean_end_reads, coords_windows
+        return mean_start_reads, mean_end_reads, coords_windows
 
     def prediction_for_each_coord(
-        self, coord, bam_file, fileseq, size, pos, hole=False
+        self, coord, bam_file, fileseq, binsize
     ):
         """
-        For one coordinate, the method computes BP position of the SV.
+        For one coordinate detected by Matrixdetector, this method will detect
+        for each position associated to this coordinate in the BAM files where 
+        is the exact position of the SV (and will correct the false positives).
 
         Parameters
         ----------
         coord : int
-            Index detected by SVDetector.
+            Coordinate 
 
         bam_file : str
             Filename of the  bam file we will use for our prediction.
@@ -189,31 +200,27 @@ class BAMdetector(object):
         fileseq : str
             Filename of the fasta file where there is the sequence.
 
-        size:
-            Size of the windows where the BP will be searched.
-        pos: float
-            Where the index will be in the window. If 0.5, the index*binsize will be in the center
+        binsize:
+            Binsize used to genereate the Hi-C matrix.
         """
 
-        coverage, start_reads, end_reads, coords_windows = self.create_coverage_starts(
-            coord, bam_file, size, pos
-        )
+        start_reads, end_reads, coords_windows = self.create_coverage_starts(coord, bam_file, binsize)
 
         coord_find = False
-        new_cluster = np.arange(0, size)
+        new_cluster = np.arange(0, binsize)
 
         probs = np.zeros(len(new_cluster))
         for i in range(0, len(new_cluster)):
 
-            index = new_cluster[i] + self.size_train // 2 + self.size_train_forest // 4
+            index = new_cluster[i] + self.corrector// 2 + self.self.size_win  // 4
             start_read = start_reads[
-                (index - self.size_train_forest // 4) : (
-                    index + self.size_train_forest // 4 + 1
+                (index - self.self.size_win  // 4) : (
+                    index + self.self.size_win  // 4 + 1
                 )
             ]
             end_read = end_reads[
-                (index - self.size_train_forest // 4) : (
-                    index + self.size_train_forest // 4 + 1
+                (index - self.self.size_win  // 4) : (
+                    index + self.self.size_win  // 4 + 1
                 )
             ]
 
@@ -227,31 +234,31 @@ class BAMdetector(object):
             self.bar()
 
         while not coord_find:
-            # print(coords_windows[new_cluster[np.argmax(probs)]+ self.size_train//2 + self.size_train_forest//4])
+          
             thresold_prob = (
-                0.98  # Proba must be superior to that value (to avoid false positive)
+                0.9  # Proba must be superior to that value (to avoid false positive)
             )
             if np.max(probs) >= thresold_prob:
 
                 final_ind = coords_windows[
                     new_cluster[np.argmax(probs)]
-                    + self.size_train // 2
-                    + self.size_train_forest // 4
+                    + self.self.corrector// 2
+                    + self.self.size_win  // 4
                 ]
 
                 index = (
                     new_cluster[np.argmax(probs)]
-                    + self.size_train // 2
-                    + self.size_train_forest // 4
+                    + self.self.corrector// 2
+                    + self.self.size_win  // 4
                 )
                 start_read = start_reads[
-                    (index - self.size_train_forest // 4) : (
-                        index + self.size_train_forest // 4 + 1
+                    (index - self.self.size_win  // 4) : (
+                        index + self.self.size_win  // 4 + 1
                     )
                 ]
                 end_read = end_reads[
-                    (index - self.size_train_forest // 4) : (
-                        index + self.size_train_forest // 4 + 1
+                    (index - self.self.size_win  // 4) : (
+                        index + self.self.size_win  // 4 + 1
                     )
                 ]
 
@@ -282,14 +289,17 @@ class BAMdetector(object):
 
     def predict(self, bam_file: str, fileseq: str, binsize: int):
         """
-        For each coordinate, the method computes BP position of the SV.
+        For each coordinate detected by Matrixdetector, this method computes
+        the exact positions of SVs on the BAM files.
 
         Parameters
 
         bam_file: str
             Filename of the  bam file we will use for our prediction.
+            
         fileseq : str
             Filename of the fasta file where there is the sequence.
+
         binsize : int
             Binsize used to create the Hi-C matrix.
         """
@@ -502,7 +512,7 @@ class BAMdetector(object):
 
     def save(self):
         """
-        Save RandomForestModel to joblib format.
+        Save all the models to joblib format.
         """
         joblib.dump(self.first_classifier, "data/models/bamdetector/bamclassif1.joblib")
         joblib.dump(
@@ -512,7 +522,7 @@ class BAMdetector(object):
 
     def load(self):
         """
-        Load RandomForest model to detect BP and others models.
+        Load all the models to detect BP and others models.
         """
         self.first_classifier = joblib.load(
             "data/models/bamdetector/bamclassif1.joblib"

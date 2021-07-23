@@ -1,3 +1,5 @@
+# Class which combine the different SV breakpoints in order to have a SV.
+
 import numpy as np
 import pandas as pd
 import pysam as ps
@@ -15,6 +17,27 @@ class Combiner(object):
     """
     After all the coords has been detected, we must find which breakpoints form 
     an SV when we combine the two of its (or the three of its for a translocation).
+
+    Examples
+    --------
+    SVCombiner = Combiner(binsize, matrix, bam)
+    SVCombiner.combine()
+    SVCombiner.save_sv_combined()
+
+    Attributes
+    ----------
+    binsize : int
+        Binsize used to create the Hi-C maps.
+
+    file_scrambled : str
+        Name of the file where there is the scrambled Hi-C matrix.
+    
+    bamfile : str
+        Name of the bamfile where the alignments are.
+    
+    tmpdir : str
+        Name of the temporary directory is. There is inside the coordinates detected 
+        as SV breakpoints by bamdetector.
     """
 
     def __init__(
@@ -34,7 +57,12 @@ class Combiner(object):
         self.col_bam = 0  # Column where there are coords detected before as SV
         self.col_sgns = 1  # Column where there are BAM coords
 
-    def combine(self):
+    def combine(self) -> SVs:
+        """
+        This is the function which combine every SV breakpoint in order to have
+        a SV. It will returns an element of the "SVs" which have every information
+        about the structural variants.
+        """
 
         # All infos for sv_class
         self.sv_name = list()
@@ -68,7 +96,29 @@ class Combiner(object):
 
         return self.info_sv
 
-    def find_mate(self, coord, allcoords, chrom="Sc_chr04"):
+    def find_mate(self, coord : int, allcoords : Iterable[int], chrom : str ="Sc_chr04") -> int:
+        """
+        This function allow to find a the mate of a SV breakpoint, among an array 
+        with a lot of others breakpoints. It will use the SA tag of the alignement
+        and see if there is an element of the array where on read is aligned on 
+        the coord, and on the element of the array. In this case, there are mates 
+        and they are combined as a structural variation. This method returns the 
+        index of the mate on the dataframe(-1 if no mate has been found).
+
+        Parameters 
+        --------
+        coord : int
+            Coordinate that we want to find the mate.
+
+        allcoords : Iterable[int]
+            An array with all the element which are potential mate (if coord is 
+            an inversion, it will be an array with all the others SV breakpoints
+            considered as inversion).
+        
+        chrom:
+            Name of the chromosome where we want to make the combinaison.
+
+        """
 
         bam = ps.AlignmentFile(self.bamfile, "rb")
 
@@ -117,7 +167,19 @@ class Combiner(object):
 
         return -1
 
-    def find_all_mates(self, allcoords):
+    def find_all_mates(self, allcoords : Iterable[int]) -> np.ndarray:
+        """
+        For one type of structural variation, it will combine every breakpoints
+        in order to have all the mates. For instance, if we give the array with 
+        all the SV breakpoints detected as SV breakpoints for an inversion to this 
+        method, it will returns all the pairs of SV breakpoints which are inversion.
+
+        Parameters 
+        --------
+        allcoords : Iterable[int]
+            An Iterable with all the SVs breakpoints detected for a structural 
+            variation by the detectors.
+        """
         # Search for each coord detected a mate.
         all_mates = list()
         for index_bp in allcoords.index:
@@ -142,6 +204,10 @@ class Combiner(object):
         return mates_indexes
 
     def add_INVs(self):
+        """
+        This is a method used during the combinaison. It add every inversion
+        combinated in order to make the class SVs with all the informations.
+        """
 
         self.INV_mates_indexes = self.find_all_mates(self.INV_info)
 
@@ -168,7 +234,8 @@ class Combiner(object):
 
     def find_TRA(self):
         """
-        Allows to detect if the insertion is linked to a translocation (so if there is a deletion associated). 
+        Allows to detect if the insertions arelinked to a translocation 
+        (so if there is a deletion associated) or not. 
         """
 
         self.DEL_mates_indexes = self.find_all_mates(
@@ -196,6 +263,11 @@ class Combiner(object):
                 self.is_TRA.append(-1)
 
     def add_TRA_DEL_INS(self):
+        """
+        This is a method used during the combinaison. It add every deletion, 
+        translocation and insertion which have been combinated in order to make 
+        the class SVs with all the informations.
+        """
 
         self.find_TRA()
 
@@ -289,6 +361,10 @@ class Combiner(object):
             count_ins += 1
 
     def save_sv_combined(self):
+        """
+        After the combinaison, we save every SVs we have detected in the output
+        file.
+        """
 
         final_INV_detected = np.sort(
             np.concatenate(

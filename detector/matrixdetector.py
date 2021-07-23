@@ -1,4 +1,5 @@
 # Trying a simple keras NN to predict SVs in a Hi-C matrix.
+
 from os.path import join
 import numpy as np
 from time import time
@@ -37,25 +38,25 @@ class Matrixdetector(object):
 
     """
     Handles to detect SV on a dataset with pictures of HiC matrix. A CNN will 
-    be used for this detection. Firstly, we must train the model with "x.npy" 
-    and "y.npy" which represent pictures and label. After that we can test the 
-    model on new data.
+    be used for this detection. Firstly, we must train the model with "imgs.npy" 
+    and "imgslabels.npy" which represent pictures and label. After that we can 
+    make predictions.
     
     Examples
     --------
-        Detector = SVDetector() \n
+        Detector = Matrixdetector() \n
         Detector.train() \n
         Detector.test()
     
     Attributes
     ----------
-    n_neurons_DEL : int
+    n_neurons : int
         Number of neurons in the two last layers of the CNN we will create for our detector.
         
     training_path : str
         Path to the npy files to load to create the training dataset.
     tmpdir : str
-        Path where temporary directory is.
+        Path where the temporary directory is.
     """
 
     def __init__(
@@ -79,7 +80,6 @@ class Matrixdetector(object):
         ----------
         training_path : str
             Path to the npy files to load.
-
         """
 
         x_data = np.load(join(training_path, "imgs.npy"))
@@ -153,7 +153,7 @@ class Matrixdetector(object):
 
         return model
 
-    def train(self, n_epochs: int = 30):
+    def train(self, n_epochs: int = 70):
 
         """
         Train model with training set.
@@ -184,6 +184,7 @@ class Matrixdetector(object):
         )
         time_begin = time()
 
+        # Training
         self.matrixdetector.fit(
             self.xtrain,
             self.ytrain,
@@ -203,6 +204,7 @@ class Matrixdetector(object):
             )
         )
 
+        # Print results of the training
         print(
             "Validation recall score:",
             recall_score(
@@ -218,7 +220,7 @@ class Matrixdetector(object):
             ),
         )
 
-    def predict(self, file_scrambled: str, verbose=1):
+    def predict(self, file_scrambled: str):
 
         """
         Find indexes where the detector detects a SV.
@@ -227,17 +229,15 @@ class Matrixdetector(object):
         ----------
         file_scrambled : str
             File where is the scrambled Hi-C matrix which we want to detect structural variations.
-
-        verbose : int
-            Print or not the steps and the score of the test.
         """
 
         scrambled = np.load(file_scrambled)
-        index_not_used = white_index(scrambled)
+        index_not_used = white_index(scrambled) # Detect white bands. We will not 
+                                                # take index of white bands for our detection
 
         half_img_size = self.img_size // 2
         ind_beg = half_img_size  # Because the pictures has a size N*N,
-        # SVs before the coordinate N//2 can't be detected (same at the end)
+        # SVs before the coordinate N//2 can't be detected (same at the end).
 
         ind_end = scrambled.shape[0] - half_img_size
 
@@ -253,7 +253,7 @@ class Matrixdetector(object):
         print("DETECTION OF SVs ON HI-C:")
         with alive_bar(ind_end - ind_beg) as bar:  #  Allow to show progression bar.
 
-            for i in range(ind_beg, ind_end):
+            for i in range(ind_beg, ind_end): # We do a sliding window to detect the SVs on the Hi-C map.
 
                 slice_scrambled = scrambled[
                     i - half_img_size : i + half_img_size,
@@ -290,11 +290,15 @@ class Matrixdetector(object):
         inds_INS_detected = np.array(inds_INS_detected)
         inds_DEL_detected = np.array(inds_DEL_detected)
 
+        # Save to a temporary directory the index detected. BAMdetector will take
+        # it.
         np.save(join(self.tmpdir, "INV_index.npy"), inds_INV_detected)
         np.save(join(self.tmpdir, "INS_index.npy"), inds_INS_detected)
         np.save(join(self.tmpdir, "DEL_index.npy"), inds_DEL_detected)
-        np.save(join(self.tmpdir, "index_not_used.npy"), index_not_used)
 
+        # Save also the index of white bands, and index of the beginning and the
+        # end of the sliding window.
+        np.save(join(self.tmpdir, "index_not_used.npy"), index_not_used)
         coords_delim = np.array([ind_beg, ind_end])
         np.save(join(self.tmpdir, "coords_delim.npy"), coords_delim)
 
@@ -306,10 +310,13 @@ class Matrixdetector(object):
             self.yvalid, np.argmax(self.matrixdetector.predict(self.xvalid), axis=1),
         )
 
-    def plot(self, history):
-
+    def plot(self, history: dict):
         """
         Plot the evolution of loss, val_loss, accuracy, val_accuracy during the training.
+        
+        history: dict
+            Dictionnary created during the training where there are the informations
+            of the training (evolution of accuracy, loss ...).
         """
 
         # Plot training & validation accuracy values
@@ -337,7 +344,7 @@ class Matrixdetector(object):
         Parameters
         ----------
         model_dir : str
-        Directory where the model will be saved.
+            Directory where the model will be saved.
         """
         model_json = self.matrixdetector.to_json()
         with open(join(model_dir, "model.json"), "w") as json_file:
@@ -353,7 +360,7 @@ class Matrixdetector(object):
         Parameters
         ----------
         model_dir : str
-        Directory where the model will be loaded.
+            Directory where the model will be loaded.
         """
 
         with open(join(model_dir, "model.json"), "r") as json_file:

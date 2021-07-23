@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pipeline", version="0.1", packages=find_packages(),
+    name="HiC_reassembler", version="0.1", packages=find_packages(),
 )

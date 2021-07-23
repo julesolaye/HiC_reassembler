@@ -1,5 +1,16 @@
+biopython
 numpy 
 matplotlib
+pandas
 keras
 scikit-learn
 tensorflow
+pysam
+glob
+click
+alive_progress
+networkx
+joblib
+shutil
+collections
+time

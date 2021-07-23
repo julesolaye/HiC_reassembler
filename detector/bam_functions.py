@@ -153,37 +153,3 @@ def bam_region_coverage(file: str, region: str) -> np.ndarray:
         cov_arr[i] = col.n
 
     return cov_arr
-
-
-def mean_weighted(array: np.array) -> float:
-    """Return a mean where coords from the center are more important than 
-    at the start or at the beginning of the array.
-
-    Parameters
-    ----------
-    array : np.array
-        Array of the elements we want to mean.
-
-    Returns
-    -------
-    float :
-        Weighted mean of the array.
-    """
-    kernel_size = (len(array) // 2) / (
-        2 * np.sqrt(np.log(10))
-    )  #  To have at the beginning and at the end 0.01.
-    if len(array) % 2 == 0:
-
-        tab_forward = np.arange(1, len(array) // 2 + 1)
-        tab_reverse = np.arange(len(array) // 2, 0, -1)
-
-        tab = np.concatenate((tab_reverse, tab_forward))
-
-    if len(array) % 2 == 1:
-
-        tab_forward = np.arange(0, len(array) // 2 + 1)
-        tab_reverse = np.arange(len(array) // 2, 0, -1)
-
-        tab = np.concatenate((tab_reverse, tab_forward))
-    tab = np.exp(-(tab ** 2) / (2 * (kernel_size ** 2)))
-    return np.mean(tab * array)
