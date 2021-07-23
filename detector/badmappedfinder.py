@@ -3,6 +3,7 @@ import pysam as ps
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import recall_score, precision_score
 
 from os.path import join
 import joblib
@@ -56,6 +57,11 @@ class BadMappedFinder(object):
 
     def train(self):
         self.classifier.fit(self.X_train, self.y_train)
+
+        print("Validation Recall Score:")
+        print(recall_score(self.y_valid, self.classifier.predict(self.X_valid)))
+        print("Validation Precision Score:")
+        print(precision_score(self.y_valid, self.classifier.predict(self.X_valid)))
 
     def predict(self, coord : int, bam_file : str, chrom :str) -> int:
         """
@@ -111,7 +117,7 @@ class BadMappedFinder(object):
 
     def load(self):
         """
-        Load RandomForest model to detect reoeats.
+        Load the SVC model.
         """
         self.classifier = joblib.load(
             "data/models/badlymappedfinder/badlymappedfinder.joblib"

@@ -75,6 +75,11 @@ class RepeatsFinder(object):
         """
         self.classifier.fit(self.X_train, self.y_train)
 
+        print("Validation Recall Score:")
+        print(recall_score(self.y_valid, self.classifier.predict(self.X_valid)))
+        print("Validation Precision Score:")
+        print(precision_score(self.y_valid, self.classifier.predict(self.X_valid)))
+
     def predict(self, coord: int, fileseq: str, chrom_id: str):
         """
         Predict if there is a repeat near a coordinate or not.

@@ -107,6 +107,20 @@ class BAMdetector(object):
         self.first_classifier.fit(self.x_train, self.y_train)
         self.second_classifier.fit(self.x_train, self.y_train)
         self.third_classifier.fit(self.x_train, self.y_train)
+        
+        print("Validation Recall Score first model:")
+        print(recall_score(self.yvalid, self.first_classifier.predict(self.xvalid)))
+        print("Validation Recall Score second model:")
+        print(recall_score(self.yvalid, self.second_classifier.predict(self.xvalid)))
+        print("Validation Recall Score third model:")
+        print(recall_score(self.yvalid, self.third_classifier.predict(self.xvalid)))
+        
+        print("Validation Precision Score first model:")
+        print(precision_score(self.yvalid, self.first_classifier.predict(self.xvalid)))
+        print("Validation Precision Score second model:")
+        print(precision_score(self.yvalid, self.second_classifier.predict(self.xvalid)))
+        print("Validation Precision Score third model:")
+        print(precision_score(self.yvalid, self.third_classifier.predict(self.xvalid)))
 
     def find_features(
         self,
