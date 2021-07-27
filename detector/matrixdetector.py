@@ -26,7 +26,7 @@ from keras.models import model_from_json
 from alive_progress import alive_bar
 
 import joblib
-from detector.utils import white_index
+from detector.utils import white_index, delete_index
 
 
 import warnings
@@ -232,14 +232,19 @@ class Matrixdetector(object):
         """
 
         scrambled = np.load(file_scrambled)
-        index_not_used = white_index(scrambled) # Detect white bands. We will not 
-                                                # take index of white bands for our detection
+        
+        
 
         half_img_size = self.img_size // 2
+
         ind_beg = half_img_size  # Because the pictures has a size N*N,
         # SVs before the coordinate N//2 can't be detected (same at the end).
-
         ind_end = scrambled.shape[0] - half_img_size
+
+        index_used = np.arange(ind_beg, ind_end) # Index used for our detection (we remove the index linked white bands).
+        index_not_used = white_index(scrambled) # Detect white bands. We will not 
+                                                # take index of white bands for our detection
+        index_used = delete_index(index_used, index_not_used)
 
         inds_INV_detected = list()
         probs_INV_detected = list()
@@ -251,9 +256,9 @@ class Matrixdetector(object):
         probs_DEL_detected = list()
 
         print("DETECTION OF SVs ON HI-C:")
-        with alive_bar(ind_end - ind_beg) as bar:  #  Allow to show progression bar.
+        with alive_bar(len(index_used)) as bar:  #  Allow to show progression bar.
 
-            for i in range(ind_beg, ind_end): # We do a sliding window to detect the SVs on the Hi-C map.
+            for i in index_used: # We do a sliding window to detect the SVs on the Hi-C map.
 
                 slice_scrambled = scrambled[
                     i - half_img_size : i + half_img_size,
@@ -298,7 +303,6 @@ class Matrixdetector(object):
 
         # Save also the index of white bands, and index of the beginning and the
         # end of the sliding window.
-        np.save(join(self.tmpdir, "index_not_used.npy"), index_not_used)
         coords_delim = np.array([ind_beg, ind_end])
         np.save(join(self.tmpdir, "coords_delim.npy"), coords_delim)
 

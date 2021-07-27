@@ -26,7 +26,7 @@ from reassembler.reassembler import Reassembler
 def reassembly(
     matrix: str, seq: str, bam: str, chrom_name: str, tmpdir: str, binsize: int
 ):
-
+    
     # Create temporary drectory
     mkdir(tmpdir)
 
@@ -38,10 +38,10 @@ def reassembly(
     # Detection on BAM
     BamDetect = BAMdetector()
     BamDetect.load()
-    BamDetect.predict(bam, seq, binsize)
+    BamDetect.predict(bam, seq, binsize, chrom_name)
 
     # Combine SV breakpoints in order to have SVs
-    SVCombiner = Combiner(binsize, matrix, bam)
+    SVCombiner = Combiner(binsize, chrom_name, matrix, bam)
     info_sv = SVCombiner.combine()
     SVCombiner.save_sv_combined()
 

@@ -4,6 +4,7 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import recall_score, precision_score
 
 from os.path import join
 import joblib
@@ -38,7 +39,7 @@ class RepeatsFinder(object):
         self.load_data()
         self.create_model()
         self.size_seq = size_seq
-        self.size_tab = size_tab
+        self.size_win = size_win
 
 
     def load_data(self, training_path: str = "data/training/repeats"):
@@ -75,10 +76,17 @@ class RepeatsFinder(object):
         """
         self.classifier.fit(self.X_train, self.y_train)
 
+        print("Training Recall Score:")
+        print(recall_score(self.y_train, self.classifier.predict(self.X_train)))
+        print("Training Precision Score:")
+        print(precision_score(self.y_train, self.classifier.predict(self.X_train)))
+
         print("Validation Recall Score:")
         print(recall_score(self.y_valid, self.classifier.predict(self.X_valid)))
         print("Validation Precision Score:")
         print(precision_score(self.y_valid, self.classifier.predict(self.X_valid)))
+
+
 
     def predict(self, coord: int, fileseq: str, chrom_id: str):
         """

@@ -58,12 +58,18 @@ class BadMappedFinder(object):
     def train(self):
         self.classifier.fit(self.X_train, self.y_train)
 
+        print("Training Recall Score:")
+        print(recall_score(self.y_train, self.classifier.predict(self.X_train)))
+        print("Training Precision Score:")
+        print(precision_score(self.y_train, self.classifier.predict(self.X_train)))
+
         print("Validation Recall Score:")
         print(recall_score(self.y_valid, self.classifier.predict(self.X_valid)))
         print("Validation Precision Score:")
         print(precision_score(self.y_valid, self.classifier.predict(self.X_valid)))
 
-    def predict(self, coord : int, bam_file : str, chrom :str) -> int:
+
+    def predict(self, coord : int, bam_file : str, chrom_id :str) -> int:
         """
         Detect badly mapped elements for one coord. It returns the label 
         detected by the model.
@@ -76,20 +82,20 @@ class BadMappedFinder(object):
         bam_file: str
             Filename of the bam files.
         
-        chrom: str
+        chrom_id: str
             Name of the chromosome where we will do the detection.
         """
 
         c_beg = coord - self.size_win // 2
         c_end = coord + self.size_win // 2
 
-        region = chrom + ":" + str(c_beg) + "-" + str(c_end + 1)
-        chrom, start, end = bm.parse_ucsc_region(region)
+        region = chrom_id + ":" + str(c_beg) + "-" + str(c_end + 1)
+        chrom_id, start, end = bm.parse_ucsc_region(region)
         bam = ps.AlignmentFile(bam_file, "rb")
 
         nb_little = 0
         nb_read = 0
-        for read in bam.fetch(chrom, start, end):
+        for read in bam.fetch(chrom_id, start, end):
 
             nb_read += 1
 

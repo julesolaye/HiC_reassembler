@@ -13,10 +13,10 @@ if __name__ == "__main__":
     #MatDetect.save()
 
     #print("----------------------------")
-    #print("TRAIN BAMDETECTOR:")
-    #BamDetect = BAMdetector() # Train model which detects the coordinate of SV breakpoints on the BAMfiles.
-    #BamDetect.train()
-    #BamDetect.save()
+    print("TRAIN BAMDETECTOR:")
+    BamDetect = BAMdetector() # Train model which detects the coordinate of SV breakpoints on the BAMfiles.
+    BamDetect.train()
+    BamDetect.save()
 
     print("----------------------------")
     print("TRAIN BADMAPPEDFINDER:")

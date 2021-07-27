@@ -5,9 +5,11 @@ import pandas as pd
 import pysam as ps
 
 import detector.bam_functions as bm
-from sv_class.sv_class import SVs
+from svs.svs import SVs
 
 from os.path import join
+
+from typing import Iterable
 
 
 np.seterr(divide="ignore", invalid="ignore")
@@ -29,22 +31,27 @@ class Combiner(object):
     binsize : int
         Binsize used to create the Hi-C maps.
 
+    chrom : str
+        Name of the chromosome where we want to detect the structural variations.
+
     file_scrambled : str
         Name of the file where there is the scrambled Hi-C matrix.
     
     bamfile : str
         Name of the bamfile where the alignments are.
-    
+
     tmpdir : str
         Name of the temporary directory is. There is inside the coordinates detected 
         as SV breakpoints by bamdetector.
     """
 
     def __init__(
-        self, binsize: int, file_scrambled: str, bamfile: str, tmpdir: str = "./tmpdir",
+        self, binsize: int, chrom: str, file_scrambled: str, bamfile: str, tmpdir: str = "./tmpdir",
     ):
 
         self.binsize = binsize
+        self.chrom = chrom
+
         self.scrambled = np.load(file_scrambled)
         self.bamfile = bamfile
 
@@ -96,7 +103,7 @@ class Combiner(object):
 
         return self.info_sv
 
-    def find_mate(self, coord : int, allcoords : Iterable[int], chrom : str ="Sc_chr04") -> int:
+    def find_mate(self, coord : int, allcoords : Iterable[int]) -> int:
         """
         This function allow to find a the mate of a SV breakpoint, among an array 
         with a lot of others breakpoints. It will use the SA tag of the alignement
@@ -114,10 +121,6 @@ class Combiner(object):
             An array with all the element which are potential mate (if coord is 
             an inversion, it will be an array with all the others SV breakpoints
             considered as inversion).
-        
-        chrom:
-            Name of the chromosome where we want to make the combinaison.
-
         """
 
         bam = ps.AlignmentFile(self.bamfile, "rb")
@@ -132,7 +135,7 @@ class Combiner(object):
         coords_reads = list()
         sgns_reads = list()
 
-        for read in bam.fetch(chrom, start, end):
+        for read in bam.fetch(self.chrom, start, end):
 
             try:
                 read_info = read.get_tag("SA").split(",")
@@ -365,34 +368,37 @@ class Combiner(object):
         After the combinaison, we save every SVs we have detected in the output
         file.
         """
-
+        n_final_INV = len(self.info_sv.coordsBP1[self.info_sv.sv_type == "INV"])
         final_INV_detected = np.sort(
             np.concatenate(
                 (
                     self.info_sv.coordsBP1[self.info_sv.sv_type == "INV"],
                     self.info_sv.coordsBP2[self.info_sv.sv_type == "INV"],
                 )
-            ).reshape((len(self.info_sv.coordsBP1[self.info_sv.sv_type == "INV"]), 2))
+            ).reshape((n_final_INV, 2))
             // self.binsize,
             axis=1,
         )
 
+        n_final_INS = len(self.info_sv.coordsBP1[self.info_sv.sv_type == "INS"])
         final_INS_detected = np.sort(
             self.info_sv.coordsBP1[self.info_sv.sv_type == "INS"] // self.binsize,
             axis=0,
         )
 
+        n_final_DEL = len(self.info_sv.coordsBP1[self.info_sv.sv_type == "DEL"])
         final_DEL_detected = np.sort(
             np.concatenate(
                 (
                     self.info_sv.coordsBP1[self.info_sv.sv_type == "DEL"],
                     self.info_sv.coordsBP2[self.info_sv.sv_type == "DEL"],
                 )
-            ).reshape((len(self.info_sv.coordsBP1[self.info_sv.sv_type == "DEL"]), 2))
+            ).reshape((n_final_DEL, 2))
             // self.binsize,
             axis=1,
         )
 
+        n_final_TRA =  len(self.info_sv.coordsBP1[(self.info_sv.sv_type == "TRA_back") | (self.info_sv.sv_type == "TRA_forward")])
         final_TRA_detected = np.sort(
             np.concatenate(
                 (
@@ -409,17 +415,7 @@ class Combiner(object):
                         | (self.info_sv.sv_type == "TRA_forward")
                     ],
                 )
-            ).reshape(
-                (
-                    len(
-                        self.info_sv.coordsBP1[
-                            (self.info_sv.sv_type == "TRA_back")
-                            | (self.info_sv.sv_type == "TRA_forward")
-                        ]
-                    ),
-                    3,
-                )
-            )
+            ).reshape((n_final_TRA,3))
             // self.binsize,
             axis=1,
         )
